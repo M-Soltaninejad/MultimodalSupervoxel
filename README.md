@@ -1,0 +1,2 @@
+# MultimodalSupervoxel
+The algorithm used in this code is the modification of the method Simple Linear Iterative Clustering (SLIC) which was proposed by Achanta et al. (2012).  Our method is optimized for medical images such as MRI, CT, etc. The contributions of our codes compared to conventional 2D and 3D superpixel are as follows:  1. Multi-modal input (works for single-modal, as well),  2. Taking the spatial resolution of the medical images into account, i.e. the voxel resolution in X and Y directions and the slice thickness.
