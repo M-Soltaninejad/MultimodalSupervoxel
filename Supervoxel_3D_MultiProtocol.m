@@ -26,17 +26,11 @@ Cmpt = [num2str(Integer),'_',num2str(Fraction)];
 
 % Data and results addresses
 Case = '01';
-ProtocolList = {'FLAIR','T1_Contrast','T2_Weighted','DTI_P_map','DTI_Q_map'}; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-InputImage_Path = [cd,'\Data\SGUL_Normalized'];
+ProtocolList = {'FLAIR','T1-Contrast','T2-Weighted','DTI-P-map','DTI-Q-map'}; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+InputImage_Path = [cd,'\Data\SG_Normalized'];
 Output_Path = [cd,'\Results\SLIC'];
 mkdir(Output_Path)
 
-
-
-
-
-
-Image3D_All = [];
 for P = 1:numel(ProtocolList)
     
     % Selecc the protocol
@@ -53,36 +47,37 @@ for P = 1:numel(ProtocolList)
     Min_I = min(Image3D_temp(:));
     Max_I = max(Image3D_temp(:));
     Image3D_temp = (Image3D_temp-Min_I)/(Max_I-Min_I);
-    eval(['I_',num2str(P),' = Image3D_temp;']);
+    I(:,:,:,P) = Image3D_temp;
 end
 
 % Initial arrays
-I = I_1;
+I_temp = I(:,:,:,1);
 S = nthroot((voxel_X * voxel_Y * voxel_Z),3);
-X_window = floor(size(I,1)/voxel_X);
-Y_window = floor(size(I,2)/voxel_Y);
-Z_window = floor(size(I,3)/voxel_Z);
+X_window = floor(size(I_temp,1)/voxel_X);
+Y_window = floor(size(I_temp,2)/voxel_Y);
+Z_window = floor(size(I_temp,3)/voxel_Z);
 r1 = ceil(voxel_X/2);
 r2 = ceil(voxel_Y/2);
 r3 = ceil(voxel_Z/2);
 [X,Y,Z] = meshgrid((2:Y_window-1).*voxel_X-r2,(2:X_window-1).*voxel_Y-r1,(2:Z_window-1).*voxel_Z-r3);
 
 % Initial Centers for 5 protocols
-for P = 1:numel(ProtocolList)
-    eval(['I_C_',num2str(P),' = zeros(size(X));']);
-end
+I_C = zeros([size(X),numel(ProtocolList)]);
+
 
 for i=1:size(X,1)
     for j = 1:size(X,2)
         for l = 1:size(X,3)
-            eval( ['I_C_',num2str(P),' (i,j,l) = I_',num2str(P),'(X(i,1,1), Y(1,j,1),Y(1,1,l));'] );
+            I_C (i,j,l,P) = I(X(i,1,1), Y(1,j,1),Y(1,1,l),P);
         end
     end
 end
 
+
 C = [X(:),Y(:),Z(:)];
 for P = 1:numel(ProtocolList)
-    eval(['C = cat(2,C,I_C_',num2str(P),'(:));']);
+    I_C_temp = squeeze(I_C(:,:,:,P));
+    C = cat(2,C,I_C_temp(:));
 end
 
 k = size(C,1);
@@ -94,21 +89,22 @@ for i = 1:k
     y = temp_C(2);
     z = temp_C(3);
     
-    temp_W = I_1(x-1:x+1,y-1:y+1,z);
+    temp_W = I_temp(x-1:x+1,y-1:y+1,z);
     a = abs(gradient(temp_W));
     [x,y] = find(a==min(a(:)), 1, 'first');
     C(i,1) = temp_C(1)+x-2;
     C(i,2) = temp_C(2)+y-2;
     
     for P = 1:numel(ProtocolList)
-        eval(['C(i,3+',num2str(P),') = I_',num2str(P),'(C(i,1), C(i,2));']);
+        C(i,3+1) = I(C(i,1), C(i,2),P);
     end
-
+    
+    
 end
 
 % Assigning the lables
-Label = -1*ones(size(I_1));
-Distance = inf*ones(size(I_1));
+Label = -1*ones(size(I_temp));
+Distance = inf*ones(size(I_temp));
 
 counter = Iterations; % Iterastions
 while counter
@@ -120,10 +116,12 @@ while counter
                     % Calculating the spatial distance
                     d_c_term = 0;
                     d_c_temp = 0;
+                    
                     for P = 1:numel(ProtocolList)
-                        eval(['d_c_temp = (I_',num2str(P),'(Center(1),Center(2),Center(3))-I_',num2str(P),'(i,j,l))^2;']);
+                        d_c_temp = (I(Center(1),Center(2),Center(3),P)-I(i,j,l,P))^2;
                         d_c_term = d_c_term + d_c_temp;
                     end
+                    
                     d_c = sqrt(d_c_term );
                     
                     % Calculating the intensity distance
@@ -154,15 +152,14 @@ while counter
         
         % make sure that the centers are inside image dimensions
         C(C(:,1)<2*r1,1) = 2*r1;
-        C(C(:,1)>size(I,1)-2*r1,1) =size(I,1)-2*r1;
+        C(C(:,1)>size(I_temp,1)-2*r1,1) =size(I_temp,1)-2*r1;
         C(C(:,2)<2*r2,2) = 2*r2;
-        C(C(:,2)>size(I,2)-2*r2,2) =size(I,2)-2*r2;
+        C(C(:,2)>size(I_temp,2)-2*r2,2) =size(I_temp,2)-2*r2;
         C(C(:,3)<2*r3,3) = 2*r3;
-        C(C(:,3)>size(I,3)-2*r3,3) =size(I,3)-2*r3;
+        C(C(:,3)>size(I_temp,3)-2*r3,3) =size(I_temp,3)-2*r3;
     end % update
 end % While
 SLIC_Labels_3D = Label;
-
 
 %% Save
 % Save the supervoxel map volumes into MAT file
@@ -170,5 +167,39 @@ Output_Name = fullfile(Output_Path,['MRI_SLIC_Labels_Size',num2str(voxel_X),...
     'x',num2str(voxel_Y),'x',num2str(voxel_Z),'_Compactness_0',Cmpt,'_Case_',num2str(Case),'.mat']);
 save (Output_Name,'SLIC_Labels_3D');
 
+%% Show the output
+Slice = round(size(I,3)/2);
+Image_2D = I(:,:,Slice,1);
+Label1 = Label(:,:,Slice,1);
+k1 = unique(Label1);
+Label2 = zeros(size(Image_2D));
+BW = zeros(size(Image_2D));
+BW = logical(BW);
+for idx = 1:numel(k1) % 1:k
+    c_k = k1(idx);
+    L = zeros(size(Image_2D));
+    L(Label1==c_k)=1;
+    BW2 = L;
+    BW_temp = edge(BW2);
+    Label2 = Label2+double(BW2)*c_k;
+    BW = BW|BW_temp;
+end
 
-
+for P = 1:numel(ProtocolList)
+    Image_2D = I(:,:,Slice,P);
+    BW_Color = repmat(Image_2D,1,1,3);
+    BW_Color = uint8(BW_Color*255);
+    for layer = 1:2
+        tempLayer = BW_Color(:,:,layer);
+        tempLayer(BW) = 255;
+        BW_Color(:,:,layer) = tempLayer;
+    end
+    tempLayer = BW_Color(:,:,3);
+    tempLayer(BW) = 0;
+    BW_Color(:,:,3) = tempLayer;
+    figure(P);
+    subplot(1,2,1); imshow(Image_2D,[])
+    title(['Original: ',ProtocolList{P}])
+    subplot(1,2,2); imshow(BW_Color,[])
+    title('SuperVoxel')
+end

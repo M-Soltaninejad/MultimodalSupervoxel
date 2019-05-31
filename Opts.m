@@ -16,9 +16,9 @@
 % parameters
 Iterations = 10;
 Compactness = 0.2;  % Compactness of the superpixel is equivalent to m
-voxel_X = 8;
-voxel_Y = 8;
-voxel_Z = 3;
+voxel_X = 10;
+voxel_Y = 10;
+voxel_Z = 4;
 
 VoxelSize = [0.9375 0.9375 2.8];
 term_x = 1/VoxelSize(1);
